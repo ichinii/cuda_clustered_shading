@@ -16,6 +16,7 @@ __device__ struct Scene {
     Plane *f;
     int n;
     unsigned int tile_index;
+    View v;
 };
 
 __device__ float sdf_plane(vec3 p, vec3 n) {
@@ -68,11 +69,12 @@ __device__ float sdf_scene_frustum(Scene s, vec3 p) {
     return sdf_frustum(p, s.f);
 }
 
-__device__ float sdf_scene_tile(Scene s, vec3 p) {
-    float d = max_dist;
-    d = sdmin(d, sdf_tile(p, s.f, tileIndexToCoord(s.tile_index)));
-    d = sdmin(d, sdf_tile_lights(p, s.indices + s.spans[s.tile_index].begin, s.spans[s.tile_index].count, s.l));
-    return d;
+__device__ float sdf_scene_tile_lights(Scene s, vec3 p) {
+    return sdf_tile_lights(p, s.indices + s.spans[s.tile_index].begin, s.spans[s.tile_index].count, s.l);
+}
+
+__device__ float sdf_scene_tile_frustum(Scene s, vec3 p) {
+    return sdf_tile(p, s.f, tileIndexToCoord(s.tile_index));
 }
 
 __device__ float sdf_scene_lights(Scene s, vec3 p) {
@@ -114,18 +116,21 @@ __device__ vec3 normal(Scene s, SdfScene sdf, vec3 p) {
     );
 }
 
-__device__ vec3 trace(Scene s, SdfScene sdf, vec3 ro, vec3 rd) {
-    vec3 c = vec3(0);
-    for (int i = 0; i < max_it; ++i) {
+__device__ float trace(Scene s, SdfScene sdf, vec3 ro, vec3 rd) {
+    float c = 0.0f;
+    for (int i = 0; i < 8; ++i) {
         Ray r = march(s, sdf, ro, rd);
         if (!r.b || r.l < min_dist * 2.0f)
             break;
 
         vec3 p = ro + rd * abs(r.l);
         vec3 n = normal(s, sdf, p);
-        c += 0.2f * vec3(0.5f + 0.5f * dot(n, normalize(vec3(1, 1, 1))));
+        float front = max(0.0f, dot(rd, -n));
+        c += step(0.001f, front) // backface culling
+            * (0.7f + 0.3f * front)
+            * (0.7f + 0.3f * dot(n, normalize(vec3(1, 3, 2))));
 
-        ro = p - n * r.sgn * min_dist * 2.0f;
+        ro = p + rd * min_dist * 2.0f / abs(dot(rd, n));
     }
     return c;
 }
@@ -136,22 +141,31 @@ __device__ mat3 look_at(vec3 d) {
     return mat3(r, u, d);
 }
 
-__global__ void get_image(vec4 *c, Camera cam, Scene s, View v) {
+__global__ void get_image(vec4 *c, Camera cam, Scene s) {
     int gtid = threadIdx.x + blockIdx.x * blockDim.x;
     vec2 uv = vec2(gtid % cam.res.x, gtid / cam.res.x) / vec2(cam.res) * 2.0f - 1.0f;
 
     // vec3 ro = cam.eye;
     // vec3 rd = look_at(normalize(cam.dir)) * normalize(vec3(uv, 1.0));
-    vec3 ro = (10.0f + v.distance) * vec3(
-        sin(v.origin.x) * cos(v.origin.y),
-        sin(v.origin.y),
-        cos(v.origin.x) * cos(v.origin.y)
+    vec3 ro = (10.0f + s.v.distance) * vec3(
+        sin(s.v.origin.x) * cos(s.v.origin.y),
+        sin(s.v.origin.y),
+        cos(s.v.origin.x) * cos(s.v.origin.y)
     );
-    vec3 rd = look_at(normalize(vec3(v.look_at.x, 0, v.look_at.y) - ro)) * normalize(vec3(uv, 1.0));
+    vec3 rd = look_at(normalize(-ro)) * normalize(vec3(uv, 1.0));
+    vec3 center = vec3(s.v.look_at.x, 0, s.v.look_at.y);
+    ro += center;
 
-    c[gtid] = vec4(0, 0, 0, 1);
-    c[gtid] += vec4(trace(s, &sdf_scene_frustum, ro, rd), 0);
-    c[gtid] += vec4(trace(s, &sdf_scene_tile, ro, rd), 0);
+    c[gtid] = vec4((1.0f/255.0f) * vec3(n21(uv)), 1);
+    c[gtid].b += trace(s, &sdf_scene_frustum, ro, rd);
+    c[gtid].g += trace(s, &sdf_scene_tile_frustum, ro, rd);
+    c[gtid].r += trace(s, &sdf_scene_tile_lights, ro, rd);
+    // c[gtid].r += trace(s, &sdf_scene_lights, ro, rd);
+
+    // draw look_at position
+    c[gtid].g += trace(s, [] (Scene s, vec3 p) -> float {
+        return length(vec3(s.v.look_at.x, 0, s.v.look_at.y) - p) - 0.15f;
+    }, ro, rd);
 }
 
 void frustumPlanes(Plane *planes, Camera cam)
@@ -195,5 +209,5 @@ void draw(vec4 *image, Camera cam, Span *spans, int* indices, Light *lights, int
     int w = 256;
     int b = (cam.res.x*cam.res.y-1)/w+1;
     unsigned int tile_index = tileCoordToIndex(tile_coord);
-    get_image<<<b, w>>>(image, cam, Scene {spans, indices, lights, frustum, n, tile_index}, view);
+    get_image<<<b, w>>>(image, cam, Scene {spans, indices, lights, frustum, n, tile_index, view});
 }

@@ -1,6 +1,6 @@
 #pragma once
 
-// #define OPT_BVH
+#define OPT_BVH
 
 // #define USE_THRUST_SORT
 // #ifdef USE_THRUST_SORT
@@ -21,7 +21,7 @@ using namespace glm;
 
 
 
-#define grid_size 4u
+#define grid_size 32u
 #define tiles_count (grid_size * grid_size * grid_size)
 
 __device__ uvec3 tileIndexToCoord(int i) {
@@ -34,4 +34,8 @@ __host__ unsigned int tileCoordToIndex(uvec3 v) {
 
 __device__ float n31(vec3 s) {
     return fract(9457.824 * sin(dot(vec3(385.291, 458.958, 941.950), s)));
+}
+
+__device__ float n21(vec2 s) {
+    return fract(12095.283 * sin(dot(vec2(585.905, 821.895), s)));
 }

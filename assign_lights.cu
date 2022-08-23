@@ -13,11 +13,11 @@ __global__ void init_lights(Light *l, int n) {
     int gtid = threadIdx.x + blockDim.x * blockIdx.x;
     if (gtid < n) {
         const int g = 8;
-        vec3 p = vec3(gtid % g, (gtid/g) % g, gtid / (g*g));
-        p = p / vec3(g) * -2.0f + 1.0f;
+        vec3 p = vec3(gtid % g, (gtid/g) % g, -gtid / (g*g));
+        p = p / vec3(g-1) * vec3(2, 2, 1) - vec3(1, 1, 0);
         l[gtid] = Light {
-            .p = p * 20.0f,
-            .r = n31(p) + 0.5f,
+            .p = p * 8.0f,
+            .r = n31(p) + 0.2f,
         };
     }
 };
@@ -94,7 +94,7 @@ __device__ bool intersect_aabb(Aabb a, Aabb b) {
 __global__ void assign_lights(KeyValue *m, Aabb *a32, Aabb *a, int n, Span *spans, int *outIndices, int *size, int capacity) {
     const int indices_capacity = 256;
 #ifdef OPT_BVH
-    const int groups_capacity = indices_capacity/4;
+    const int groups_capacity = indices_capacity;
     __shared__ int groups[groups_capacity];
     __shared__ int groups_count;
 #endif
@@ -103,7 +103,6 @@ __global__ void assign_lights(KeyValue *m, Aabb *a32, Aabb *a, int n, Span *span
     __shared__ int count;
 
     int tid = threadIdx.x;
-    int gtid = threadIdx.x + blockIdx.x * blockDim.x;
     int tile_index = blockIdx.x;
 
     if (tid == 0) {
@@ -150,10 +149,9 @@ __global__ void assign_lights(KeyValue *m, Aabb *a32, Aabb *a, int n, Span *span
     __syncwarp();
 
     if (tid == 0) {
+        // printf("%d   %d\n", tile_index, groups_count);
         count = min(count, indices_capacity);
         begin = atomicAdd(size, count);
-        // if (begin != 0 || count != 0)
-        //     printf("_ %d %d\n", begin, count);
         count = min(begin + count, capacity) - begin;
         spans[tile_index].begin = begin;
         spans[tile_index].count = count;

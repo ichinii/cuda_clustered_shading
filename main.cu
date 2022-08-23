@@ -53,7 +53,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     Aabb *aabbs32;
     glm::vec4 *image;
     int *indices;
-    const int indices_capacity = 1024*16;
+    const int indices_capacity = 1024*1024;
     int *indices_size;
     Span *spans;
     cudaMallocManaged(&lights, elements * sizeof(Light));

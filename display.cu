@@ -142,7 +142,7 @@ void display(uvec2 res, std::function<glm::vec4*(uvec3, View)> update) {
     };
 
     glfwSetScrollCallback(window, [] (GLFWwindow* window, double dx, double dy) {
-        mouse_scroll_y = max(0.0f, mouse_scroll_y + dy);
+        mouse_scroll_y = max(0.0f, mouse_scroll_y - dy);
     });
 
     uvec3 tile_coord = uvec3(grid_size - 1);
@@ -155,9 +155,11 @@ void display(uvec2 res, std::function<glm::vec4*(uvec3, View)> update) {
         dvec2 mouse;
         glfwGetCursorPos(window, &mouse.x, &mouse.y);
         tile_coord.x += (key_states[GLFW_KEY_D] == 1) - (key_states[GLFW_KEY_A] == 1);
-        tile_coord.y += (key_states[GLFW_KEY_E] == 1) - (key_states[GLFW_KEY_Q] == 1);
-        tile_coord.z += (key_states[GLFW_KEY_S] == 1) - (key_states[GLFW_KEY_W] == 1);
+        tile_coord.y += (key_states[GLFW_KEY_W] == 1) - (key_states[GLFW_KEY_S] == 1);
+        tile_coord.z += (key_states[GLFW_KEY_Q] == 1) - (key_states[GLFW_KEY_E] == 1);
         tile_coord = tile_coord % uvec3(grid_size);
+        if (key_states[GLFW_KEY_SPACE] == 1)
+            look_at = vec2(0, 0);
         look_at.x += (key_states[GLFW_KEY_RIGHT] > 0) - (key_states[GLFW_KEY_LEFT] > 0);
         look_at.y += (key_states[GLFW_KEY_DOWN] > 0) - (key_states[GLFW_KEY_UP] > 0);
         View view {

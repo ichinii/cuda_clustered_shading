@@ -11,19 +11,19 @@ void dump(T* a, int n, const char* label) {
 }
 
 std::ostream& operator<< (std::ostream& os, KeyValue a) {
-    return std::cout << "(k: " << a.k << ", v: " <<  a.v << ")";
+    return os << "(k: " << a.k << ", v: " <<  a.v << ")";
 }
 
 std::ostream& operator<< (std::ostream& os, Light a) {
-    return std::cout << "(p: [" << a.p.x << ", " << a.p.y << ", " << a.p.z << "], r: " << a.r << ")";
+    return os << "(p: [" << a.p.x << ", " << a.p.y << ", " << a.p.z << "], r: " << a.r << ")";
 }
 
 std::ostream& operator<< (std::ostream& os, Span a) {
-    return std::cout << "(begin: " << a.begin << ", " << ", count: " << a.count << ")";
+    return os << "(begin: " << a.begin << ", " << ", count: " << a.count << ")";
 }
 
 std::ostream& operator<< (std::ostream& os, Aabb a) {
-    return std::cout << "(backLeftBot: [" << a.backLeftBot.x << ", " << a.backLeftBot.y << ", " << a.backLeftBot.z << "], frontRightTop: [" << a.frontRightTop.x << ", " << a.frontRightTop.y << ", " << a.frontRightTop.z << "])";
+    return os << "(backLeftBot: [" << a.backLeftBot.x << ", " << a.backLeftBot.y << ", " << a.backLeftBot.z << "], frontRightTop: [" << a.frontRightTop.x << ", " << a.frontRightTop.y << ", " << a.frontRightTop.z << "])";
 }
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
@@ -58,7 +58,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     Span *spans;
     cudaMallocManaged(&lights, elements * sizeof(Light));
     cudaMallocManaged(&mortons, elements * sizeof(KeyValue));
-    cudaMallocManaged(&aabbs32, ((elements-1)/32+1) * sizeof(Aabb));
+    cudaMallocManaged(&aabbs32, ((elements-1)/w+1) * sizeof(Aabb));
     cudaMallocManaged(&aabbs, elements * sizeof(Aabb));
     SortByKey h_sortp;
     cudaMemcpyFromSymbol(&h_sortp, d_sortp, sizeof(SortByKey));
@@ -83,11 +83,11 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 
 #ifdef OPT_BVH
     cudaDeviceSynchronize();
-    reduce_aabbs<<<b32, 32>>>(aabbs, aabbs32);
+    reduce_aabbs<<<b, w>>>(aabbs, aabbs32);
 #endif
 
     cudaDeviceSynchronize();
-    assign_lights<<<tiles_count, 32>>>(mortons, aabbs32, aabbs, elements, spans, indices, indices_size, indices_capacity);
+    assign_lights<<<tiles_count, w>>>(mortons, aabbs32, aabbs, elements, spans, indices, indices_size, indices_capacity);
 
     cudaDeviceSynchronize();
     // dump(mortons, elements, "mortons");

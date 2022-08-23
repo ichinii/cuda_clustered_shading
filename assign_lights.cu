@@ -66,20 +66,20 @@ __global__ void get_aabbs(KeyValue *m, Light *l, Aabb *a, int n, Perspective p) 
 }
 
 __global__ void reduce_aabbs(Aabb *in, Aabb *out) {
-    __shared__ Aabb a[32];
+    __shared__ Aabb a[256];
     int tid = threadIdx.x;
     int gtid = threadIdx.x + blockIdx.x * blockDim.x;
     a[tid] = in[gtid];
-    __syncwarp();
-    for (int i = 1; i < 32; i*=2) {
+    __syncthreads();
+    for (int i = 1; i < 256; i*=2) {
         if (i <= tid) {
             a[tid].backLeftBot = min(a[tid].backLeftBot, a[tid - i].backLeftBot);
             a[tid].frontRightTop = max(a[tid].frontRightTop, a[tid - i].frontRightTop);
         }
-        __syncwarp();
+        __syncthreads();
     }
-    if (tid == 31)
-        out[blockIdx.x] = a[31];
+    if (tid == 255)
+        out[blockIdx.x] = a[255];
 }
 
 __device__ bool intersect_aabb(Aabb a, Aabb b) {
@@ -112,7 +112,7 @@ __global__ void assign_lights(KeyValue *m, Aabb *a32, Aabb *a, int n, Span *span
         count = 0;
     }
 
-    __syncwarp();
+    __syncthreads();
 
     vec3 coord = vec3(tileIndexToCoord(tile_index));
     Aabb self = {
@@ -121,7 +121,7 @@ __global__ void assign_lights(KeyValue *m, Aabb *a32, Aabb *a, int n, Span *span
     };
 
 #ifdef OPT_BVH
-    for (int i = tid; i < (n-1)/32+1; i+=32) {
+    for (int i = tid; i < (n-1)/256+1; i+=256) {
         bool b = intersect_aabb(self, a32[i]);
         if (intersect_aabb(self, a32[i])) {
             int index = atomicAdd(&groups_count, 1);
@@ -131,12 +131,12 @@ __global__ void assign_lights(KeyValue *m, Aabb *a32, Aabb *a, int n, Span *span
         }
     }
 
-    __syncwarp();
+    __syncthreads();
 
     for (int j = 0; j < min(groups_count, groups_capacity); ++j) {
-        int i = groups[j]*32 + tid;
+        int i = groups[j]*256 + tid;
 #else
-    for (int i = tid; i < n; i+=32) {
+    for (int i = tid; i < n; i+=256) {
 #endif
         if (intersect_aabb(self, a[i])) {
             int index = atomicAdd(&count, 1);
@@ -146,7 +146,7 @@ __global__ void assign_lights(KeyValue *m, Aabb *a32, Aabb *a, int n, Span *span
         }
     }
 
-    __syncwarp();
+    __syncthreads();
 
     if (tid == 0) {
         // printf("%d   %d\n", tile_index, groups_count);
@@ -157,9 +157,9 @@ __global__ void assign_lights(KeyValue *m, Aabb *a32, Aabb *a, int n, Span *span
         spans[tile_index].count = count;
     }
 
-    __syncwarp();
+    __syncthreads();
 
-    for (int i = tid; i < count; i+=32) {
+    for (int i = tid; i < count; i+=256) {
         outIndices[begin + i] = indices[i];
     }
 }

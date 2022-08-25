@@ -23,7 +23,7 @@ std::ostream& operator<< (std::ostream& os, Span a) {
 }
 
 std::ostream& operator<< (std::ostream& os, Aabb a) {
-    return os << "(backLeftBot: [" << a.backLeftBot.x << ", " << a.backLeftBot.y << ", " << a.backLeftBot.z << "], frontRightTop: [" << a.frontRightTop.x << ", " << a.frontRightTop.y << ", " << a.frontRightTop.z << "])";
+    return os << "(back_left_bot: [" << a.back_left_bot.x << ", " << a.back_left_bot.y << ", " << a.back_left_bot.z << "], front_right_top: [" << a.front_right_top.x << ", " << a.front_right_top.y << ", " << a.front_right_top.z << "])";
 }
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
@@ -97,7 +97,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 
     auto update = [&] (uvec3 tile_coord, View view) {
         cudaDeviceSynchronize();
-        draw(image, cam, spans, indices, lights, elements, tile_coord, view);
+        draw(image, cam, spans, indices, mortons, lights, elements, tile_coord, view);
 
         cudaDeviceSynchronize();
         return image;
@@ -105,11 +105,14 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 
     display(cam.res, update);
 
-    // cudaFree(lights);
-    // cudaFree(mortons);
-    // cudaFree(aabbs);
-    // cudaFree(aabbs32);
-    // cudaFree(image);
+    cudaFree(lights);
+    cudaFree(mortons);
+    cudaFree(aabbs);
+    cudaFree(aabbs32);
+    cudaFree(image);
+    cudaFree(indices);
+    cudaFree(indices_size);
+    cudaFree(spans);
 
     return 0;
 }

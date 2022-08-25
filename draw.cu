@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common.cu"
-#include "types.cu"
 
 #define max_dist 200.0f
 #define min_dist 0.01f
@@ -12,23 +11,51 @@
 __device__ struct Scene {
     Span *spans;
     int *indices;
+    KeyValue *mortons;
     Light *l;
     Plane *f;
-    int n;
+    int lights_count;
     unsigned int tile_index;
     View v;
+    Camera cam;
 };
+
+__device__ float sdmin(float a, float b) {
+    return abs(a) < abs(b) ? a : b;
+}
 
 __device__ float sdf_plane(vec3 p, vec3 n) {
     return dot(p, n);
 }
 
-__device__ float sdf_tile(vec3 p, Plane *f, uvec3 coord) {
+__device__ float sdf_sphere(vec3 p) {
+    return length(p);
+}
+
+// thanks Inigo Quilez (https://iquilezles.org/articles/distfunctions/)
+__device__ float sdf_capsule(vec3 p, vec3 a, vec3 b, float r) {
+    vec3 pa = p - a;
+    vec3 ba = b - a;
+    float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0f, 1.0f);
+    return length(pa - ba * h) - r;
+}
+
+__device__ float sdf_tile_frustum(vec3 p, Plane *f, uvec3 coord) {
     float d = -max_dist;
     for (int i = 0; i < 3; ++i) {
         int j = coord[i] + planes_size * i;
         d = max(d, sdf_plane(p + f[j].n * f[j].o, -f[j].n));
         d = max(d, sdf_plane(p + f[j+1].n * f[j+1].o, f[j+1].n));
+    }
+    return d;
+}
+
+__device__ float sdf_tile_planes(vec3 p, Plane *f, uvec3 coord) {
+    float d = max_dist;
+    for (int i = 0; i < 3; ++i) {
+        int j = coord[i] + planes_size * i;
+        d = min(d, abs(sdf_plane(p + f[j].n * f[j].o, -f[j].n)));
+        d = min(d, abs(sdf_plane(p + f[j+1].n * f[j+1].o, f[j+1].n)));
     }
     return d;
 }
@@ -44,14 +71,10 @@ __device__ float sdf_frustum(vec3 p, Plane *f) {
     return d;
 }
 
-__device__ float sdmin(float a, float b) {
-    return abs(a) < abs(b) ? a : b;
-}
-
-__device__ float sdf_lights(vec3 p, Light *l, int n) {
+__device__ float sdf_lights(vec3 p, KeyValue *mortons, Light *l, int b, int e) {
     float d = max_dist;
-    for (int i = 0; i < n; ++i) {
-        d = sdmin(d, length(l[i].p - p) - l[i].r);
+    for (int i = b; i < e; ++i) {
+        d = sdmin(d, sdf_sphere(l[mortons[i].v].p - p) - l[mortons[i].v].r);
     }
     return d;
 }
@@ -60,7 +83,7 @@ __device__ float sdf_tile_lights(vec3 p, int* indices, int n, Light *lights) {
     float d = max_dist;
     for (int i = 0; i < n; ++i) {
         Light l = lights[indices[i]];
-        d = sdmin(d, length(l.p - p) - l.r);
+        d = sdmin(d, sdf_sphere(l.p - p) - l.r);
     }
     return d;
 }
@@ -74,18 +97,42 @@ __device__ float sdf_scene_tile_lights(Scene s, vec3 p) {
 }
 
 __device__ float sdf_scene_tile_frustum(Scene s, vec3 p) {
-    return sdf_tile(p, s.f, tileIndexToCoord(s.tile_index));
+    return sdf_tile_frustum(p, s.f, tileIndexToCoord(s.tile_index));
+}
+
+__device__ float sdf_scene_tile_helper_lines(Scene s, vec3 p) {
+    float d = max_dist;
+    float r = 0.1f;
+    vec3 coord = vec3(tileIndexToCoord(s.tile_index));
+    vec3 a = coord / float(grid_size) * 2.0f - 1.0f;        // back left bot
+    vec3 b = (coord+1.0f) / float(grid_size) * 2.0f - 1.0f; // front right top
+    a.z -= s.cam.proj.near;
+    b.z -= s.cam.proj.near;
+    d = sdmin(d, sdf_capsule(p, vec3(a.x, a.y, 0), vec3(a.x, a.y, 1), r));
+    d = sdmin(d, sdf_capsule(p, vec3(b.x, a.y, 0), vec3(b.x, a.y, 1), r));
+    d = sdmin(d, sdf_capsule(p, vec3(a.x, b.y, 0), vec3(a.x, b.y, 1), r));
+    d = sdmin(d, sdf_capsule(p, vec3(b.x, b.y, 0), vec3(b.x, b.y, 1), r));
+    return d;
 }
 
 __device__ float sdf_scene_lights(Scene s, vec3 p) {
-    return sdf_lights(p, s.l, s.n);
+    const int stride = 32;
+    int i = s.v.lights_offset % ((s.lights_count-1)/stride+1);
+    return sdf_lights(p, s.mortons, s.l, i * stride, min((i+1) * stride, s.lights_count));
 }
 
 __device__ struct Ray {
-    bool b;
+    bool hit;
     float l;
     float sgn;
 };
+
+__device__ float sdf_frustum_depth(Scene s, vec3 p) {
+    float d = max_dist;
+    d = sdmin(d, sdf_plane(p + s.cam.proj.near, vec3(0, 0, 1)));
+    d = sdmin(d, sdf_plane(p + s.cam.proj.far, vec3(0, 0, -1)));
+    return d;
+}
 
 using SdfScene = float(*)(Scene, vec3);
 
@@ -93,15 +140,14 @@ __device__ Ray march(Scene s, SdfScene sdf, vec3 ro, vec3 rd) {
     auto lo = 0.0f;
     for (int i = 0; i < max_it && lo < max_dist; ++i) {
         float sl = sdf(s, ro);
-        float sgn = sign(sl);
         float l = abs(sl);
         ro += l * rd;
         lo += l;
 
         if (l < min_dist)
-            return Ray {true, lo, sgn};
+            return Ray {true, lo, sign(sl)};
     }
-    return Ray {false, 0, 1};
+    return Ray {false};
 }
 
 __device__ vec3 normal(Scene s, SdfScene sdf, vec3 p) {
@@ -116,38 +162,41 @@ __device__ vec3 normal(Scene s, SdfScene sdf, vec3 p) {
     );
 }
 
-__device__ float trace(Scene s, SdfScene sdf, vec3 ro, vec3 rd) {
-    float c = 0.0f;
-    for (int i = 0; i < 8; ++i) {
-        Ray r = march(s, sdf, ro, rd);
-        if (!r.b || r.l < min_dist * 2.0f)
-            break;
-
-        vec3 p = ro + rd * abs(r.l);
-        vec3 n = normal(s, sdf, p);
-        float front = max(0.0f, dot(rd, -n));
-        c += step(0.001f, front) // backface culling
-            * (0.7f + 0.3f * front)
-            * (0.7f + 0.3f * dot(n, normalize(vec3(1, 3, 2))));
-
-        ro = p + rd * min_dist * 2.0f / abs(dot(rd, n));
-    }
-    return c;
-}
-
 __device__ mat3 look_at(vec3 d) {
     vec3 r = normalize(cross(d, vec3(0, 1, 0)));
     vec3 u = normalize(cross(r, d));
     return mat3(r, u, d);
 }
 
-__global__ void get_image(vec4 *c, Camera cam, Scene s) {
+__device__ float trace(Scene s, SdfScene sdf, vec3 ro, vec3 rd) {
+    float c = 0.0f;
+    for (float i = 0.0f; i < 8.0f; ++i) {
+
+        Ray r = march(s, sdf, ro, rd);
+        if (!r.hit)
+            break;
+
+        vec3 p = ro + rd * r.l;
+        vec3 n = normal(s, sdf, p);
+        ro = p + rd * min_dist * 10.0f;
+        float front = max(0.0f, dot(rd, -n));
+        if (r.l < min_dist * 1.0f) {
+            i -= 0.5f;
+        } else if (0.0f < front) {
+            c += (0.7f + 0.3f * front)
+                * (0.7f + 0.3f * dot(n, normalize(vec3(1, 3, 2))));
+        }
+    }
+    return c;
+}
+
+__global__ void get_image(vec4 *c, Scene s) {
     int gtid = threadIdx.x + blockIdx.x * blockDim.x;
-    vec2 uv = vec2(gtid % cam.res.x, gtid / cam.res.x) / vec2(cam.res) * 2.0f - 1.0f;
+    vec2 uv = vec2(gtid % s.cam.res.x, gtid / s.cam.res.x) / vec2(s.cam.res) * 2.0f - 1.0f;
 
     // vec3 ro = cam.eye;
     // vec3 rd = look_at(normalize(cam.dir)) * normalize(vec3(uv, 1.0));
-    vec3 ro = (10.0f + s.v.distance) * vec3(
+    vec3 ro = s.v.zoom * vec3(
         sin(s.v.origin.x) * cos(s.v.origin.y),
         sin(s.v.origin.y),
         cos(s.v.origin.x) * cos(s.v.origin.y)
@@ -157,10 +206,13 @@ __global__ void get_image(vec4 *c, Camera cam, Scene s) {
     ro += center;
 
     c[gtid] = vec4((1.0f/255.0f) * vec3(n21(uv)), 1);
-    c[gtid].b += trace(s, &sdf_scene_frustum, ro, rd);
-    c[gtid].g += trace(s, &sdf_scene_tile_frustum, ro, rd);
-    c[gtid].r += trace(s, &sdf_scene_tile_lights, ro, rd);
-    // c[gtid].r += trace(s, &sdf_scene_lights, ro, rd);
+    c[gtid].b += 0.8f * trace(s, &sdf_scene_frustum, ro, rd);
+    c[gtid].g += 0.8f * trace(s, &sdf_scene_tile_frustum, ro, rd);
+    c[gtid].r += 0.3f * trace(s, &sdf_scene_tile_lights, ro, rd);
+    // c[gtid].g += trace(s, &sdf_scene_tile_helper_lines, ro, rd);
+    // c[gtid].r += trace(s, &sdf_frustum_depth, ro, rd);
+    float lights = 0.5f * trace(s, &sdf_scene_lights, ro, rd);
+    c[gtid].b += lights;
 
     // draw look_at position
     c[gtid].g += trace(s, [] (Scene s, vec3 p) -> float {
@@ -199,7 +251,7 @@ void frustumPlanes(Plane *planes, Camera cam)
     }
 }
 
-void draw(vec4 *image, Camera cam, Span *spans, int* indices, Light *lights, int n, uvec3 tile_coord, View view) {
+void draw(vec4 *image, Camera cam, Span *spans, int* indices, KeyValue* mortons, Light *lights, int n, uvec3 tile_coord, View view) {
     Plane *frustum;
     cudaMallocManaged(&frustum, planes_count * sizeof(Plane));
     cudaDeviceSynchronize();
@@ -209,5 +261,5 @@ void draw(vec4 *image, Camera cam, Span *spans, int* indices, Light *lights, int
     int w = 256;
     int b = (cam.res.x*cam.res.y-1)/w+1;
     unsigned int tile_index = tileCoordToIndex(tile_coord);
-    get_image<<<b, w>>>(image, cam, Scene {spans, indices, lights, frustum, n, tile_index, view});
+    get_image<<<b, w>>>(image, Scene {spans, indices, mortons, lights, frustum, n, tile_index, view, cam});
 }

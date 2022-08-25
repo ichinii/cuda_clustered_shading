@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.cu"
+#include "sort.cu"
 
 //TODO: return int is wrong. remove predicate thing
 __device__ unsigned int sort_predicate_keyvalue(KeyValue a) {
@@ -16,34 +17,25 @@ __global__ void init_lights(Light *l, int n) {
         vec3 p = vec3(gtid % g, (gtid/g) % g, -gtid / (g*g));
         p = p / vec3(g-1) * vec3(2, 2, 1) - vec3(1, 1, 0);
         l[gtid] = Light {
-            .p = p * 8.0f,
-            .r = n31(p) + 0.2f,
+            .p = p * 12.0f,
+            .r = pow(n31(p), 4.0f) * 2.5f + 0.2f,
         };
     }
 };
-
-__device__ vec3 transform_ndc(vec3 v, Perspective p) {
-    auto s = -1.0f / (tan(p.fov/2.0f * pi<float>()/180.0f));
-    auto x = v.x / v.z * s;
-    auto y = v.y / v.z * s;
-    auto z = (v.z+p.near)/(p.far-p.near)*2+1;
-    return vec3(x, y, z);
-}
 
 // TODO: cull on the morton code
 __global__ void get_mortons(Light *l, KeyValue *m, int n, Perspective proj) {
     int gtid = threadIdx.x + blockDim.x * blockIdx.x;
     if (gtid < n) {
         vec3 p0 = transform_ndc(l[gtid].p, proj) / 2.0f + 0.5f;
-        uvec3 p = uvec3(p0 * 255.555f);
-        // uvec3 p = uvec3(l[gtid].p);
+        uvec3 p = clamp(uvec3(p0 * 256.0f), 0u, 255u);
         unsigned int r = min(int(l[gtid].r), 255);
         unsigned int k = 0;
         for (int i = 0; i < 8; ++i) {
             k += ((p.x<<(i*4-i)) & (1<<(i*4)));
             k += ((p.y<<(i*4-i+1)) & (1<<(i*4+1)));
             k += ((p.z<<(i*4-i+2)) & (1<<(i*4+2)));
-            k += ((r<<(i*4-i+3)) & (1<<(i*4+3)));
+            // k += ((r<<(i*4-i+3)) & (1<<(i*4+3)));
         }
         m[gtid].k = k;
         m[gtid].v = gtid;
@@ -56,11 +48,11 @@ __global__ void get_aabbs(KeyValue *m, Light *l, Aabb *a, int n, Perspective p) 
         int i = m[gtid].v;
         // TODO: maybe it can be useful not to take the min and max
         vec3 frontLeftBot = transform_ndc(l[i].p + vec3(-l[i].r, -l[i].r, l[i].r), p);
-        vec3 frontRightTop = transform_ndc(l[i].p + vec3(l[i].r), p);
+        vec3 front_right_top = transform_ndc(l[i].p + vec3(l[i].r), p);
         vec3 backCenter = transform_ndc(l[i].p + vec3(0, 0, -l[i].r), p);
         a[gtid] = Aabb {
-            .backLeftBot = vec3(vec2(frontLeftBot), backCenter.z),
-            .frontRightTop = frontRightTop,
+            .back_left_bot = vec3(vec2(frontLeftBot), backCenter.z),
+            .front_right_top = front_right_top,
         };
     }
 }
@@ -73,8 +65,8 @@ __global__ void reduce_aabbs(Aabb *in, Aabb *out) {
     __syncthreads();
     for (int i = 1; i < 256; i*=2) {
         if (i <= tid) {
-            a[tid].backLeftBot = min(a[tid].backLeftBot, a[tid - i].backLeftBot);
-            a[tid].frontRightTop = max(a[tid].frontRightTop, a[tid - i].frontRightTop);
+            a[tid].back_left_bot = min(a[tid].back_left_bot, a[tid - i].back_left_bot);
+            a[tid].front_right_top = max(a[tid].front_right_top, a[tid - i].front_right_top);
         }
         __syncthreads();
     }
@@ -83,12 +75,12 @@ __global__ void reduce_aabbs(Aabb *in, Aabb *out) {
 }
 
 __device__ bool intersect_aabb(Aabb a, Aabb b) {
-    return a.backLeftBot.x < b.frontRightTop.x
-        && a.backLeftBot.y < b.frontRightTop.y
-        && a.backLeftBot.z < b.frontRightTop.z
-        && b.backLeftBot.x < a.frontRightTop.x
-        && b.backLeftBot.y < a.frontRightTop.y
-        && b.backLeftBot.z < a.frontRightTop.z;
+    return a.back_left_bot.x < b.front_right_top.x
+        && a.back_left_bot.y < b.front_right_top.y
+        && a.back_left_bot.z < b.front_right_top.z
+        && b.back_left_bot.x < a.front_right_top.x
+        && b.back_left_bot.y < a.front_right_top.y
+        && b.back_left_bot.z < a.front_right_top.z;
 }
 
 __global__ void assign_lights(KeyValue *m, Aabb *a32, Aabb *a, int n, Span *spans, int *outIndices, int *size, int capacity) {
@@ -116,8 +108,8 @@ __global__ void assign_lights(KeyValue *m, Aabb *a32, Aabb *a, int n, Span *span
 
     vec3 coord = vec3(tileIndexToCoord(tile_index));
     Aabb self = {
-        .backLeftBot = coord / vec3(grid_size) * 2.0f - 1.0f,
-        .frontRightTop = (coord + 1.0f) / vec3(grid_size) * 2.0f - 1.0f,
+        .back_left_bot = coord / vec3(grid_size) * 2.0f - 1.0f,
+        .front_right_top = (coord + 1.0f) / vec3(grid_size) * 2.0f - 1.0f,
     };
 
 #ifdef OPT_BVH

@@ -2,7 +2,6 @@
 
 #include "common.cu"
 
-// static constexpr const size_t elements = (1<<20);
 #define radix_threads 32 // step sync
 #define radix_stepsync (radix_threads==32)
 #if radix_stepsync

@@ -3,7 +3,7 @@
 #include "common.cu"
 
 std::map<int, int> key_states;
-float mouse_scroll_y = 0.0f;
+float mouse_scroll_y = 10.0f;
 
 static GLuint loadShaderFromSourceCode(GLenum type, const char* sourcecode, int length)
 {
@@ -142,11 +142,12 @@ void display(uvec2 res, std::function<glm::vec4*(uvec3, View)> update) {
     };
 
     glfwSetScrollCallback(window, [] (GLFWwindow* window, double dx, double dy) {
-        mouse_scroll_y = max(0.0f, mouse_scroll_y - dy);
+        mouse_scroll_y = max(3.0f, mouse_scroll_y - dy);
     });
 
     uvec3 tile_coord = uvec3(grid_size - 1);
     vec2 look_at = vec2(0, 0);
+    int lights_offset = 0;
 
     while (!glfwWindowShouldClose(window)) {
         // handle input
@@ -160,14 +161,16 @@ void display(uvec2 res, std::function<glm::vec4*(uvec3, View)> update) {
         tile_coord = tile_coord % uvec3(grid_size);
         if (key_states[GLFW_KEY_SPACE] == 1) {
             look_at = vec2(0, 0);
-            mouse_scroll_y = 0;
+            mouse_scroll_y = 10.0f;
         }
         look_at.x += (key_states[GLFW_KEY_RIGHT] > 0) - (key_states[GLFW_KEY_LEFT] > 0);
         look_at.y += (key_states[GLFW_KEY_DOWN] > 0) - (key_states[GLFW_KEY_UP] > 0);
+        lights_offset += (key_states[GLFW_KEY_M] % 8 == 1) - (key_states[GLFW_KEY_N] % 8 == 1);
         View view {
             .origin = (vec2(mouse.x, mouse.y) / vec2(res) * 2.0f - 1.0f) * vec2(-1, 1) * pi<float>(),
             .look_at = look_at,
-            .distance = mouse_scroll_y,
+            .zoom = mouse_scroll_y,
+            .lights_offset = lights_offset,
         };
         view.origin.y = max(min(view.origin.y, pi<float>() * 0.45f), -pi<float>() * 0.45f);
 

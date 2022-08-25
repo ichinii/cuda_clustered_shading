@@ -2,12 +2,12 @@
 r&d project
 
 ### dependencies
-Video card by NVidia with compute capability >= ?
-cuda
-OpenGL 4.0
-GLEW
-glfw
-glm
+- Video card by NVidia with compute capability >= ?
+- cuda
+- OpenGL 4.0
+- GLEW
+- glfw
+- glm
 
 ### build (linux)
 ```

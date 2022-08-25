@@ -2,11 +2,6 @@
 
 #define OPT_BVH
 
-// #define USE_THRUST_SORT
-// #ifdef USE_THRUST_SORT
-// #include <thrust/sort.h>
-// #endif
-
 #include <bits/stdc++.h>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -15,7 +10,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#define grid_size 8u
+#define grid_size 32u
 #define tiles_count (grid_size * grid_size * grid_size)
 
 using namespace glm;
@@ -79,12 +74,19 @@ __host__ unsigned int tileCoordToIndex(uvec3 v) {
     return v.x + v.y * grid_size + v.z * grid_size * grid_size;
 }
 
+__device__ float n21(vec2 s) {
+    return fract(12095.283 * sin(dot(vec2(585.905, 821.895), s)));
+}
+
 __device__ float n31(vec3 s) {
     return fract(9457.824 * sin(dot(vec3(385.291, 458.958, 941.950), s)));
 }
 
-__device__ float n21(vec2 s) {
-    return fract(12095.283 * sin(dot(vec2(585.905, 821.895), s)));
+__device__ vec3 n33(vec3 s) {
+    float n1 = n21(vec2(s));
+    float n2 = n21(vec2(s.z, s.x));
+    float n3 = n21(vec2(s.y, s.z));
+    return vec3(n1, n2, n3);
 }
 
 __device__ vec3 transform_ndc(vec3 v, Perspective p) {

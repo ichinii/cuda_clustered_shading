@@ -15,9 +15,9 @@ __global__ void init_lights(Light *l, int n) {
     if (gtid < n) {
         const int g = 8;
         vec3 p = vec3(gtid % g, (gtid/g) % g, -gtid / (g*g));
-        p = p / vec3(g-1) * vec3(2, 2, 1) - vec3(1, 1, 0);
+        p = p / vec3(g-1);
         l[gtid] = Light {
-            .p = p * 12.0f,
+            .p = (n33(p) * 2.0f - vec3(1, 1, 0)) * vec3(20, 20, -14),
             .r = pow(n31(p), 4.0f) * 2.5f + 0.2f,
         };
     }

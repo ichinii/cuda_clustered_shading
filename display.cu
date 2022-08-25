@@ -87,7 +87,7 @@ static GLuint createProgram(std::vector<shader_load_data_t> shader_load_data)
 void display(uvec2 res, std::function<glm::vec4*(uvec3, View)> update) {
     assert(glfwInit() == GLFW_TRUE);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
     glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
     auto window = glfwCreateWindow(res.x, res.y, "Clustered Shading Debug", nullptr, nullptr);
     glfwSetInputMode(window, GLFW_STICKY_KEYS, GLFW_TRUE);

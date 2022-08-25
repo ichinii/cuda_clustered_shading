@@ -161,8 +161,12 @@ __device__ float trace(Scene s, SdfScene sdf, vec3 ro, vec3 rd) {
         if (r.l < min_dist * 1.0f) {
             i -= 0.5f;
         } else if (0.0f < front) {
-            c += (0.7f + 0.3f * (1.0f-front))
-                * (0.7f + 0.3f * dot(n, normalize(vec3(1, 3, 2))));
+            vec3 directional_light = normalize(vec3(1, 3, 2));
+            float a = dot(n, directional_light);
+            c += pow(1.0f-front, 5.0f)
+                + 0.8f * max(0.0f, a)
+                + 0.8f * pow(max(0.0f, -a), 5.0f)
+                + 0.2f;
         }
     }
     return c;
@@ -197,6 +201,9 @@ __global__ void get_image(vec4 *c, Scene s) {
     c[gtid].g += trace(s, [] (Scene s, vec3 p) -> float {
         return length(vec3(s.v.look_at.x, 0, s.v.look_at.y) - p) - 0.1f;
     }, ro, rd);
+
+    // gamma correction
+    c[gtid] = vec4(pow(vec3(c[gtid]), vec3(1.0 / 2.2)), c[gtid].a);
 }
 
 void frustumPlanes(Plane *planes, Camera cam)

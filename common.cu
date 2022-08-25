@@ -61,6 +61,14 @@ __global__ struct View {
     vec2 look_at;
     float zoom;
     int lights_offset;
+
+    enum VisibleFlag : int {
+        frustum = 1,
+        tile_frustum = 2,
+        tile_lights = 4,
+        lights = 8,
+    };
+    int visible_flags;
 };
 
 __device__ uvec3 tileIndexToCoord(int i) {

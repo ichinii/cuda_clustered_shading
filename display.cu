@@ -4,6 +4,7 @@
 
 std::map<int, int> key_states;
 float mouse_scroll_y = 10.0f;
+int visible_flags = View::VisibleFlag::frustum | View::VisibleFlag::tile_frustum | View::VisibleFlag::tile_lights;
 
 static GLuint loadShaderFromSourceCode(GLenum type, const char* sourcecode, int length)
 {
@@ -166,11 +167,20 @@ void display(uvec2 res, std::function<glm::vec4*(uvec3, View)> update) {
         look_at.x += (key_states[GLFW_KEY_RIGHT] > 0) - (key_states[GLFW_KEY_LEFT] > 0);
         look_at.y += (key_states[GLFW_KEY_DOWN] > 0) - (key_states[GLFW_KEY_UP] > 0);
         lights_offset += (key_states[GLFW_KEY_M] % 8 == 1) - (key_states[GLFW_KEY_N] % 8 == 1);
+        if ((key_states[GLFW_KEY_1] % 8 == 1))
+            visible_flags ^= View::VisibleFlag::frustum;
+        if ((key_states[GLFW_KEY_2] % 8 == 1))
+            visible_flags ^= View::VisibleFlag::tile_frustum;
+        if ((key_states[GLFW_KEY_3] % 8 == 1))
+            visible_flags ^= View::VisibleFlag::tile_lights;
+        if ((key_states[GLFW_KEY_4] % 8 == 1))
+            visible_flags ^= View::VisibleFlag::lights;
         View view {
             .origin = (vec2(mouse.x, mouse.y) / vec2(res) * 2.0f - 1.0f) * vec2(-1, 1) * pi<float>(),
             .look_at = look_at,
             .zoom = mouse_scroll_y,
             .lights_offset = lights_offset,
+            .visible_flags = visible_flags,
         };
         view.origin.y = max(min(view.origin.y, pi<float>() * 0.45f), -pi<float>() * 0.45f);
 

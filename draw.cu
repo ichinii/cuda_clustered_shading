@@ -100,24 +100,9 @@ __device__ float sdf_scene_tile_frustum(Scene s, vec3 p) {
     return sdf_tile_frustum(p, s.f, tileIndexToCoord(s.tile_index));
 }
 
-__device__ float sdf_scene_tile_helper_lines(Scene s, vec3 p) {
-    float d = max_dist;
-    float r = 0.1f;
-    vec3 coord = vec3(tileIndexToCoord(s.tile_index));
-    vec3 a = coord / float(grid_size) * 2.0f - 1.0f;        // back left bot
-    vec3 b = (coord+1.0f) / float(grid_size) * 2.0f - 1.0f; // front right top
-    a.z -= s.cam.proj.near;
-    b.z -= s.cam.proj.near;
-    d = sdmin(d, sdf_capsule(p, vec3(a.x, a.y, 0), vec3(a.x, a.y, 1), r));
-    d = sdmin(d, sdf_capsule(p, vec3(b.x, a.y, 0), vec3(b.x, a.y, 1), r));
-    d = sdmin(d, sdf_capsule(p, vec3(a.x, b.y, 0), vec3(a.x, b.y, 1), r));
-    d = sdmin(d, sdf_capsule(p, vec3(b.x, b.y, 0), vec3(b.x, b.y, 1), r));
-    return d;
-}
-
 __device__ float sdf_scene_lights(Scene s, vec3 p) {
     const int stride = 32;
-    int i = s.v.lights_offset % ((s.lights_count-1)/stride+1);
+    int i = abs(s.v.lights_offset) % ((s.lights_count-1)/stride+1);
     return sdf_lights(p, s.mortons, s.l, i * stride, min((i+1) * stride, s.lights_count));
 }
 
@@ -126,13 +111,6 @@ __device__ struct Ray {
     float l;
     float sgn;
 };
-
-__device__ float sdf_frustum_depth(Scene s, vec3 p) {
-    float d = max_dist;
-    d = sdmin(d, sdf_plane(p + s.cam.proj.near, vec3(0, 0, 1)));
-    d = sdmin(d, sdf_plane(p + s.cam.proj.far, vec3(0, 0, -1)));
-    return d;
-}
 
 using SdfScene = float(*)(Scene, vec3);
 
@@ -183,7 +161,7 @@ __device__ float trace(Scene s, SdfScene sdf, vec3 ro, vec3 rd) {
         if (r.l < min_dist * 1.0f) {
             i -= 0.5f;
         } else if (0.0f < front) {
-            c += (0.7f + 0.3f * front)
+            c += (0.7f + 0.3f * (1.0f-front))
                 * (0.7f + 0.3f * dot(n, normalize(vec3(1, 3, 2))));
         }
     }
@@ -206,17 +184,18 @@ __global__ void get_image(vec4 *c, Scene s) {
     ro += center;
 
     c[gtid] = vec4((1.0f/255.0f) * vec3(n21(uv)), 1);
-    c[gtid].b += 0.8f * trace(s, &sdf_scene_frustum, ro, rd);
-    c[gtid].g += 0.8f * trace(s, &sdf_scene_tile_frustum, ro, rd);
-    c[gtid].r += 0.3f * trace(s, &sdf_scene_tile_lights, ro, rd);
-    // c[gtid].g += trace(s, &sdf_scene_tile_helper_lines, ro, rd);
-    // c[gtid].r += trace(s, &sdf_frustum_depth, ro, rd);
-    float lights = 0.5f * trace(s, &sdf_scene_lights, ro, rd);
-    c[gtid].b += lights;
+    if (s.v.visible_flags & View::VisibleFlag::frustum)
+        c[gtid].b += 0.8f * trace(s, &sdf_scene_frustum, ro, rd);
+    if (s.v.visible_flags & View::VisibleFlag::tile_frustum)
+        c[gtid].g += 0.8f * trace(s, &sdf_scene_tile_frustum, ro, rd);
+    if (s.v.visible_flags & View::VisibleFlag::tile_lights)
+        c[gtid].r += 0.3f * trace(s, &sdf_scene_tile_lights, ro, rd);
+    if (s.v.visible_flags & View::VisibleFlag::lights)
+        c[gtid].b += 0.3f * trace(s, &sdf_scene_lights, ro, rd);
 
     // draw look_at position
     c[gtid].g += trace(s, [] (Scene s, vec3 p) -> float {
-        return length(vec3(s.v.look_at.x, 0, s.v.look_at.y) - p) - 0.15f;
+        return length(vec3(s.v.look_at.x, 0, s.v.look_at.y) - p) - 0.1f;
     }, ro, rd);
 }
 

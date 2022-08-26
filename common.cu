@@ -10,7 +10,9 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#define grid_size 32u
+#ifndef grid_size
+#define grid_size 8u
+#endif
 #define tiles_count (grid_size * grid_size * grid_size)
 
 using namespace glm;
@@ -103,4 +105,27 @@ __device__ vec3 transform_ndc_invert(vec3 v, Perspective p) {
     auto x = v.x * z / s;
     auto y = v.y * z / s;
     return vec3(x, y, z);
+}
+
+template <typename T>
+void dump(T* a, int n, const char* label) {
+    std::cout << "\t" << label << std::endl;
+    for (int i = 0; i < n; ++i)
+        std::cout << a[i] << ", " << std::endl;
+}
+
+std::ostream& operator<< (std::ostream& os, KeyValue a) {
+    return os << "(k: " << a.k << ", v: " <<  a.v << ")";
+}
+
+std::ostream& operator<< (std::ostream& os, Light a) {
+    return os << "(p: [" << a.p.x << ", " << a.p.y << ", " << a.p.z << "], r: " << a.r << ")";
+}
+
+std::ostream& operator<< (std::ostream& os, Span a) {
+    return os << "(begin: " << a.begin << ", " << ", count: " << a.count << ")";
+}
+
+std::ostream& operator<< (std::ostream& os, Aabb a) {
+    return os << "(back_left_bot: [" << a.back_left_bot.x << ", " << a.back_left_bot.y << ", " << a.back_left_bot.z << "], front_right_top: [" << a.front_right_top.x << ", " << a.front_right_top.y << ", " << a.front_right_top.z << "])";
 }

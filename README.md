@@ -2,7 +2,7 @@
 r&d project
 
 ### dependencies
-- Video card by NVidia with compute capability >= ?
+- Video card by NVIDIA with compute capability >= ?
 - cuda
 - OpenGL 4.0
 - GLEW
@@ -12,6 +12,17 @@ r&d project
 ### build (linux)
 ```
 nvcc -lGL -lGLU -lGLEW -lglfw main.cu
+```
+options:
+```
+-Dgrid_size=8
+```
+
+### run
+the optional number argument populates the scene with 2^ARG number of light sources.
+default: 11 => 2^11 = 2048 light sources
+```
+./a.out 11
 ```
 
 ### controls

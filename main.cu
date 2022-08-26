@@ -3,31 +3,9 @@
 #include "assign_lights.cu"
 #include "display.cu"
 
-template <typename T>
-void dump(T* a, int n, const char* label) {
-    std::cout << "\t" << label << std::endl;
-    for (int i = 0; i < n; ++i)
-        std::cout << a[i] << ", " << std::endl;
-}
-
-std::ostream& operator<< (std::ostream& os, KeyValue a) {
-    return os << "(k: " << a.k << ", v: " <<  a.v << ")";
-}
-
-std::ostream& operator<< (std::ostream& os, Light a) {
-    return os << "(p: [" << a.p.x << ", " << a.p.y << ", " << a.p.z << "], r: " << a.r << ")";
-}
-
-std::ostream& operator<< (std::ostream& os, Span a) {
-    return os << "(begin: " << a.begin << ", " << ", count: " << a.count << ")";
-}
-
-std::ostream& operator<< (std::ostream& os, Aabb a) {
-    return os << "(back_left_bot: [" << a.back_left_bot.x << ", " << a.back_left_bot.y << ", " << a.back_left_bot.z << "], front_right_top: [" << a.front_right_top.x << ", " << a.front_right_top.y << ", " << a.front_right_top.z << "])";
-}
-
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 {
+    // number of light sources
     int elements = 8*8*32;
 
     if (argc == 2) {

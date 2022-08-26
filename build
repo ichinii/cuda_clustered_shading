@@ -1,3 +1,3 @@
 #!/bin/bash
 
-nvcc -lGL -lGLU -lGLEW -lglfw main.cu
+nvcc $@ -lGL -lGLU -lGLEW -lglfw main.cu

@@ -8,12 +8,12 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#ifndef opt
-#   define opt 1
-#endif
-
 #ifndef grid_size
 #   define grid_size 8u
+#endif
+
+#ifndef opt
+#   define opt 1
 #endif
 
 #define tiles_count (grid_size * grid_size * grid_size)

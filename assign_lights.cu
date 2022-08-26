@@ -84,7 +84,7 @@ __device__ bool intersect_aabb(Aabb a, Aabb b) {
         && b.back_left_bot.z < a.front_right_top.z;
 }
 
-__global__ void assign_lights(KeyValue *m, Aabb *a32, Aabb *a, int n, Span *spans, int *outIndices, int *size, int capacity) {
+__global__ void assign_lights(KeyValue *m, Aabb *a256, Aabb *a, int n, Span *spans, int *outIndices, int *size, int capacity) {
     const int indices_capacity = 256;
 #if opt
     const int groups_capacity = indices_capacity;
@@ -115,8 +115,8 @@ __global__ void assign_lights(KeyValue *m, Aabb *a32, Aabb *a, int n, Span *span
 
 #if opt
     for (int i = tid; i < (n-1)/256+1; i+=256) {
-        bool b = intersect_aabb(self, a32[i]);
-        if (intersect_aabb(self, a32[i])) {
+        bool b = intersect_aabb(self, a256[i]);
+        if (intersect_aabb(self, a256[i])) {
             int index = atomicAdd(&groups_count, 1);
             if (index < groups_capacity) {
                 groups[index] = i;

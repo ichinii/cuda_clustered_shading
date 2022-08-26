@@ -4,7 +4,7 @@
 
 std::map<int, int> key_states;
 float mouse_scroll_y = 10.0f;
-int visible_flags = View::VisibleFlag::frustum | View::VisibleFlag::tile_frustum | View::VisibleFlag::tile_lights;
+int visible_flags = View::VisibleFlag::frustum | View::VisibleFlag::tile_frustum;
 
 static GLuint loadShaderFromSourceCode(GLenum type, const char* sourcecode, int length)
 {

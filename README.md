@@ -11,22 +11,30 @@ r&d project
 
 ### build (linux)
 ```
-# use cuda compiler, link libraries
+    # use cuda compiler, link libraries
 nvcc -lGL -lGLU -lGLEW -lglfw main.cu
 ```
 options:
 ```
-# cluster grid extent. default: 8
+    # cluster grid extent. default: 8
 -Dgrid_size=8
-# enable bounding volume optimization. default: 1
+    # enable bounding volume optimization. default: 1
 -Dopt=1
 ```
 
 ### run
-the optional number argument populates the scene with 2^ARG number of light sources.
-default: 11 => 2^11 = 2048 light sources
 ```
-./a.out 11
+./a.out
+```
+arguments:
+```
+    # populates the scene with 2^ARG number of light sources.\
+    # default: 10 => 2^11 = 2048 light sources
+lights=10
+    # camera field of view
+fov=90
+    # camera far plane
+far=32
 ```
 
 ### controls

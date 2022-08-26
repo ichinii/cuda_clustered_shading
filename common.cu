@@ -1,7 +1,5 @@
 #pragma once
 
-#define OPT_BVH
-
 #include <bits/stdc++.h>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -10,9 +8,14 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#ifndef grid_size
-#define grid_size 8u
+#ifndef opt
+#   define opt 1
 #endif
+
+#ifndef grid_size
+#   define grid_size 8u
+#endif
+
 #define tiles_count (grid_size * grid_size * grid_size)
 
 using namespace glm;

@@ -11,11 +11,15 @@ r&d project
 
 ### build (linux)
 ```
+# use cuda compiler, link libraries
 nvcc -lGL -lGLU -lGLEW -lglfw main.cu
 ```
 options:
 ```
+# cluster grid extent. default: 8
 -Dgrid_size=8
+# enable bounding volume optimization. default: 1
+-Dopt=1
 ```
 
 ### run

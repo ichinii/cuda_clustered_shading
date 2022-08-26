@@ -51,7 +51,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     cudaDeviceSynchronize();
     get_mortons<<<b, w>>>(lights, mortons, elements, cam.proj);
 
-#ifdef OPT_BVH
+#if opt
     cudaDeviceSynchronize();
     sort(&mortons, elements, h_sortp);
 #endif
@@ -59,7 +59,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     cudaDeviceSynchronize();
     get_aabbs<<<b, w>>>(mortons, lights, aabbs, elements, cam.proj);
 
-#ifdef OPT_BVH
+#if opt
     cudaDeviceSynchronize();
     reduce_aabbs<<<b, w>>>(aabbs, aabbs32);
 #endif

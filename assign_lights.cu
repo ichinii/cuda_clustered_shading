@@ -1,3 +1,4 @@
+
 #pragma once
 
 #include "common.cu"
@@ -85,7 +86,7 @@ __device__ bool intersect_aabb(Aabb a, Aabb b) {
 
 __global__ void assign_lights(KeyValue *m, Aabb *a32, Aabb *a, int n, Span *spans, int *outIndices, int *size, int capacity) {
     const int indices_capacity = 256;
-#ifdef OPT_BVH
+#if opt
     const int groups_capacity = indices_capacity;
     __shared__ int groups[groups_capacity];
     __shared__ int groups_count;
@@ -98,7 +99,7 @@ __global__ void assign_lights(KeyValue *m, Aabb *a32, Aabb *a, int n, Span *span
     int tile_index = blockIdx.x;
 
     if (tid == 0) {
-#ifdef OPT_BVH
+#if opt
         groups_count = 0;
 #endif
         count = 0;
@@ -112,7 +113,7 @@ __global__ void assign_lights(KeyValue *m, Aabb *a32, Aabb *a, int n, Span *span
         .front_right_top = (coord + 1.0f) / vec3(grid_size) * 2.0f - 1.0f,
     };
 
-#ifdef OPT_BVH
+#if opt
     for (int i = tid; i < (n-1)/256+1; i+=256) {
         bool b = intersect_aabb(self, a32[i]);
         if (intersect_aabb(self, a32[i])) {

@@ -29,11 +29,11 @@ options:
 arguments:
 ```
     # populates the scene with 2^ARG number of light sources.\
-    # default: 10 => 2^11 = 2048 light sources
+    # default: 10 => 2^10 = 1024 light sources
 lights=10
-    # camera field of view
+    # camera field of view. default: 90
 fov=90
-    # camera far plane
+    # camera far plane. default: 32
 far=32
 ```
 

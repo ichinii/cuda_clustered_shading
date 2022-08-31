@@ -30,13 +30,11 @@ __global__ void get_mortons(Light *l, KeyValue *m, int n, Perspective proj) {
     if (gtid < n) {
         vec3 p0 = transform_ndc(l[gtid].p, proj) / 2.0f + 0.5f;
         uvec3 p = clamp(uvec3(p0 * 256.0f), 0u, 255u);
-        unsigned int r = min(int(l[gtid].r), 255);
         unsigned int k = 0;
         for (int i = 0; i < 8; ++i) {
             k += ((p.x<<(i*4-i)) & (1<<(i*4)));
             k += ((p.y<<(i*4-i+1)) & (1<<(i*4+1)));
             k += ((p.z<<(i*4-i+2)) & (1<<(i*4+2)));
-            // k += ((r<<(i*4-i+3)) & (1<<(i*4+3)));
         }
         m[gtid].k = k;
         m[gtid].v = gtid;
@@ -107,7 +105,7 @@ __global__ void assign_lights(KeyValue *m, Aabb *a256, Aabb *a, int n, Span *spa
 
     __syncthreads();
 
-    vec3 coord = vec3(tileIndexToCoord(tile_index));
+    vec3 coord = vec3(tile_index_to_coord(tile_index));
     Aabb self = {
         .back_left_bot = coord / vec3(grid_size) * 2.0f - 1.0f,
         .front_right_top = (coord + 1.0f) / vec3(grid_size) * 2.0f - 1.0f,
@@ -142,7 +140,6 @@ __global__ void assign_lights(KeyValue *m, Aabb *a256, Aabb *a, int n, Span *spa
     __syncthreads();
 
     if (tid == 0) {
-        // printf("%d   %d\n", tile_index, groups_count);
         count = min(count, indices_capacity);
         begin = atomicAdd(size, count);
         count = min(begin + count, capacity) - begin;

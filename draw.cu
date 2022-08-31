@@ -71,6 +71,16 @@ __device__ float sdf_frustum(vec3 p, Plane *f) {
     return d;
 }
 
+__device__ float sdf_tiled_frustum_planes(vec3 p, Plane *f) {
+    float d = max_dist;
+    for (int i = 0; i < 3*planes_size; ++i) {
+        d = sdmin(d, sdf_plane(p + f[i].n * f[i].o, f[i].n));
+        d = sdmin(d, sdf_plane(p + f[i].n * f[i].o, -f[i].n));
+    }
+    d = max(d, sdf_frustum(p, f));
+    return d;
+}
+
 __device__ float sdf_lights(vec3 p, KeyValue *mortons, Light *l, int b, int e) {
     float d = max_dist;
     for (int i = b; i < e; ++i) {
@@ -92,12 +102,16 @@ __device__ float sdf_scene_frustum(Scene s, vec3 p) {
     return sdf_frustum(p, s.f);
 }
 
+__device__ float sdf_scene_tiled_frustum_planes(Scene s, vec3 p) {
+    return sdf_tiled_frustum_planes(p, s.f);
+}
+
 __device__ float sdf_scene_tile_lights(Scene s, vec3 p) {
     return sdf_tile_lights(p, s.indices + s.spans[s.tile_index].begin, s.spans[s.tile_index].count, s.l);
 }
 
 __device__ float sdf_scene_tile_frustum(Scene s, vec3 p) {
-    return sdf_tile_frustum(p, s.f, tileIndexToCoord(s.tile_index));
+    return sdf_tile_frustum(p, s.f, tile_index_to_coord(s.tile_index));
 }
 
 __device__ float sdf_scene_lights(Scene s, vec3 p) {
@@ -196,6 +210,7 @@ __global__ void get_image(vec4 *c, Scene s) {
         c[gtid].r += 0.3f * trace(s, &sdf_scene_tile_lights, ro, rd);
     if (s.v.visible_flags & View::VisibleFlag::lights)
         c[gtid].b += 0.3f * trace(s, &sdf_scene_lights, ro, rd);
+    // c[gtid].b += 0.1f * trace(s, &sdf_scene_tiled_frustum_planes, ro, rd);
 
     // draw look_at position
     c[gtid].g += trace(s, [] (Scene s, vec3 p) -> float {
@@ -206,7 +221,7 @@ __global__ void get_image(vec4 *c, Scene s) {
     c[gtid] = vec4(pow(vec3(c[gtid]), vec3(1.0 / 2.2)), c[gtid].a);
 }
 
-void frustumPlanes(Plane *planes, Camera cam)
+void frustum_planes(Plane *planes, Camera cam)
 {
     const auto up = vec3(0, 1, 0);
     const auto invProj = inverse(perspective(radians(cam.proj.fov), 1.0f, cam.proj.near, cam.proj.far));
@@ -241,11 +256,11 @@ void draw(vec4 *image, Camera cam, Span *spans, int* indices, KeyValue* mortons,
     Plane *frustum;
     cudaMallocManaged(&frustum, planes_count * sizeof(Plane));
     cudaDeviceSynchronize();
-    frustumPlanes(frustum, cam);
+    frustum_planes(frustum, cam);
     cudaDeviceSynchronize();
 
     int w = 256;
     int b = (cam.res.x*cam.res.y-1)/w+1;
-    unsigned int tile_index = tileCoordToIndex(tile_coord);
+    unsigned int tile_index = tile_coord_to_index(tile_coord);
     get_image<<<b, w>>>(image, Scene {spans, indices, mortons, lights, frustum, n, tile_index, view, cam});
 }

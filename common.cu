@@ -71,11 +71,11 @@ __global__ struct View {
     int visible_flags;
 };
 
-__device__ uvec3 tileIndexToCoord(int i) {
+__device__ uvec3 tile_index_to_coord(int i) {
     return uvec3(i % grid_size, (i / grid_size) % grid_size, i / (grid_size * grid_size));
 }
 
-__host__ unsigned int tileCoordToIndex(uvec3 v) {
+__host__ unsigned int tile_coord_to_index(uvec3 v) {
     return v.x + v.y * grid_size + v.z * grid_size * grid_size;
 }
 
@@ -110,13 +110,6 @@ __device__ vec3 transform_ndc_invert(vec3 v, Perspective p) {
     return vec3(x, y, z);
 }
 
-template <typename T>
-void dump(T* a, int n, const char* label) {
-    std::cout << "\t" << label << std::endl;
-    for (int i = 0; i < n; ++i)
-        std::cout << a[i] << ", " << std::endl;
-}
-
 std::ostream& operator<< (std::ostream& os, KeyValue a) {
     return os << "(k: " << a.k << ", v: " <<  a.v << ")";
 }
@@ -131,4 +124,11 @@ std::ostream& operator<< (std::ostream& os, Span a) {
 
 std::ostream& operator<< (std::ostream& os, Aabb a) {
     return os << "(back_left_bot: [" << a.back_left_bot.x << ", " << a.back_left_bot.y << ", " << a.back_left_bot.z << "], front_right_top: [" << a.front_right_top.x << ", " << a.front_right_top.y << ", " << a.front_right_top.z << "])";
+}
+
+template <typename T>
+void dump(T* a, int n, const char* label) {
+    std::cout << "\t" << label << std::endl;
+    for (int i = 0; i < n; ++i)
+        std::cout << a[i] << ", " << std::endl;
 }

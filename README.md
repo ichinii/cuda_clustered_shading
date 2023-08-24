@@ -2,7 +2,7 @@
 r&d project
 
 ### dependencies
-- Video card by NVIDIA with compute capability >= ?
+- Video card by NVIDIA
 - cuda
 - OpenGL 4.0
 - GLEW
